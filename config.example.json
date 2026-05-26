@@ -1,0 +1,9 @@
+{
+  "not_winner_message": "很抱歉，您没有中奖。",
+  "already_claimed_message": "您已经领取过奖品，请勿重复领取。",
+  "winner_message_template": "恭喜您中奖！\n\n您的奖品是：\n{prize}",
+  "winners": {
+    "123456789": "示例奖品A",
+    "987654321": "示例奖品B"
+  }
+}
