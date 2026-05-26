@@ -1,0 +1,10 @@
+services:
+  tg-prize-bot:
+    build: .
+    container_name: tg-prize-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./data:/app/data
