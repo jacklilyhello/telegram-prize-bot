@@ -6,6 +6,7 @@ from aiogram import F, Router
 from aiogram.filters import CommandStart
 from aiogram.types import Message
 
+from app.claim_service import build_claim_response
 from app.config import PrizeConfig
 from app.database import ClaimsRepository
 
@@ -29,26 +30,15 @@ def build_router(prize_config: PrizeConfig, repo: ClaimsRepository) -> Router:
         tg_id = message.from_user.id
         logger.info("User %s sent /start", tg_id)
 
-        prize = prize_config.winners.get(tg_id)
-        if prize is None:
+        result = build_claim_response(tg_id=tg_id, prize_config=prize_config, repo=repo)
+        if not result.is_winner:
             logger.info("User %s is not winner", tg_id)
-            await message.reply(prize_config.not_winner_message)
-            return
-
-        logger.info("User %s is winner", tg_id)
-
-        if repo.has_claimed(tg_id):
+        elif result.already_claimed:
             logger.info("User %s already claimed", tg_id)
-            await message.reply(prize_config.already_claimed_message)
-            return
+        else:
+            logger.info("User %s is winner", tg_id)
+            logger.info("User %s claimed prize", tg_id)
 
-        claimed = repo.try_claim(tg_id, prize)
-        if not claimed:
-            logger.info("User %s already claimed", tg_id)
-            await message.reply(prize_config.already_claimed_message)
-            return
-
-        logger.info("User %s claimed prize", tg_id)
-        await message.reply(prize_config.winner_message_template.format(prize=prize))
+        await message.reply(result.message)
 
     return router

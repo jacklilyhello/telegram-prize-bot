@@ -1,45 +1,31 @@
 # Telegram Prize Bot（简化版抽奖发奖机器人）
 
-## 1. 项目介绍
-这是一个最小可用的 Telegram 发奖机器人：用户私聊机器人发送 `/start` 后，机器人读取 `message.from_user.id`（Telegram 数字 ID），判断是否在中奖名单里，并按规则发放奖品或返回未中奖提示。
-
-本项目特性：
-- 使用 `aiogram 3.x` 实现 Telegram Bot。
-- 使用 `SQLite` 持久化领取记录。
-- 使用 `python-dotenv` 加载环境变量。
-- 支持本地运行和 Docker Compose 部署。
-
----
+## 1. 项目简介
+这是一个最小可用的 Telegram 发奖机器人。用户私聊机器人发送 `/start` 后，机器人读取 `message.from_user.id`，根据 `config.json` 的中奖名单判断并发放对应奖品。
 
 ## 2. 功能说明
-机器人只处理 `/start` 命令，逻辑如下：
+- 仅处理 `/start`。
+- 私聊中：
+  - 未中奖：回复 `not_winner_message`
+  - 首次中奖领取：写入 SQLite 并发送奖品消息
+  - 重复领取：回复 `already_claimed_message`
+- 群聊中：回复 `请私聊机器人领取奖品。`
+- 使用 SQLite `tg_id PRIMARY KEY` 防止重复领取。
 
-1. **私聊场景**
-   - 若用户不在 `config.json` 的 `winners` 中：回复 `not_winner_message`。
-   - 若用户在 `winners` 中且未领取：
-     - 写入 SQLite 领取记录。
-     - 按 `winner_message_template` 渲染并发送奖品内容（替换 `{prize}`）。
-   - 若用户已领取过：回复 `already_claimed_message`。
-
-2. **群聊场景**
-   - 用户在群内发送 `/start`：回复 `请私聊机器人领取奖品。`
-
-3. **防重复领取**
-   - 通过 `claims.tg_id PRIMARY KEY` 保证同一用户只能成功写入一次。
-   - 即使短时间重复请求，也不会重复发奖。
-
----
-
-## 3. 项目结构
-
+## 3. 文件结构
 ```text
 tg-prize-bot/
 ├── app/
 │   ├── __init__.py
+│   ├── claim_service.py
 │   ├── main.py
 │   ├── config.py
 │   ├── database.py
 │   └── handlers.py
+├── tests/
+│   ├── test_config.py
+│   ├── test_database.py
+│   └── test_claim_logic.py
 ├── data/
 │   └── .gitkeep
 ├── .env.example
@@ -51,10 +37,7 @@ tg-prize-bot/
 └── README.md
 ```
 
----
-
-## 4. 本地运行方法
-
+## 4. 本地运行
 ```bash
 cp .env.example .env
 cp config.example.json config.json
@@ -62,12 +45,7 @@ pip install -r requirements.txt
 python -m app.main
 ```
 
-> 运行前请确保 Python 版本为 3.11+。
-
----
-
-## 5. Docker Compose 部署方法
-
+## 5. Docker Compose 运行
 ```bash
 cp .env.example .env
 cp config.example.json config.json
@@ -75,36 +53,15 @@ docker compose up -d --build
 docker logs -f tg-prize-bot
 ```
 
-说明：
-- `config.json` 通过只读挂载进入容器：`./config.json:/app/config.json:ro`
-- `data` 目录挂载到容器用于持久化数据库：`./data:/app/data`
-- 容器重启后领取记录不会丢失。
-
----
-
-## 6. 配置文件说明
-
-### 6.1 `.env`
-由 `.env.example` 复制得到。
-
-示例：
-
+## 6. 配置说明
+### `.env`
 ```env
 BOT_TOKEN=your_telegram_bot_token_here
 CONFIG_PATH=config.json
 DATABASE_PATH=data/claims.db
 ```
 
-字段说明：
-- `BOT_TOKEN`：从 BotFather 获取。
-- `CONFIG_PATH`：中奖配置文件路径，默认 `config.json`。
-- `DATABASE_PATH`：SQLite 数据库路径，默认 `data/claims.db`。
-
-### 6.2 `config.json`
-由 `config.example.json` 复制得到。
-
-示例：
-
+### `config.json`
 ```json
 {
   "not_winner_message": "很抱歉，您没有中奖。",
@@ -117,89 +74,36 @@ DATABASE_PATH=data/claims.db
 }
 ```
 
-约束：
-- `winners` 的 key 必须是可转换为整数的字符串 Telegram ID。
-- `winners` 的 value 必须是非空字符串。
-- `winner_message_template` 必须包含 `{prize}`。
-
----
-
-## 7. 如何填写中奖用户 Telegram 数字 ID
-在 `config.json` 的 `winners` 中新增条目：
-
-```json
-"winners": {
-  "123456789": "Kimi API 199 套餐兑换码：AAAA-BBBB-CCCC"
-}
-```
-
-说明：
-- `123456789` 是用户 Telegram 数字 ID（字符串形式）。
-- 每个 ID 只能对应一个奖品。
-- 不在 `winners` 的用户会收到未中奖提示。
-
----
+## 7. 如何填写中奖用户 TG 数字 ID
+在 `config.json` 的 `winners` 中添加条目，key 为字符串数字 ID，value 为奖品文本。
 
 ## 8. 如何查看日志
+- 本地：直接查看 `python -m app.main` 终端输出
+- Docker：`docker logs -f tg-prize-bot`
 
-### 本地运行日志
-直接在终端查看 `python -m app.main` 的输出。
-
-### Docker 日志
-
-```bash
-docker logs -f tg-prize-bot
-```
-
-日志会记录：
-- 机器人启动成功
-- 数据库初始化成功
-- 用户访问 `/start`
-- 用户是否中奖、是否已领取
-
-不会完整输出奖品内容，避免敏感信息泄露。
-
----
-
-## 9. 如何备份领取数据库
-
-```bash
-cp data/claims.db data/claims.db.bak
-```
-
-恢复时可将备份文件拷回：
-
-```bash
-cp data/claims.db.bak data/claims.db
-```
-
----
-
-## 10. 常见问题
-
-### Q1: 启动时报 `Missing BOT_TOKEN in .env`
-请确认 `.env` 已创建且 `BOT_TOKEN` 已填写。
-
-### Q2: 启动时报配置文件错误
-请检查：
-- `config.json` 是否存在且 JSON 合法。
-- 是否包含必需字段：
-  - `not_winner_message`
-  - `already_claimed_message`
-  - `winner_message_template`
-  - `winners`
-- `winner_message_template` 是否包含 `{prize}`。
-
-### Q3: 用户重复 `/start` 会不会重复发奖？
-不会。数据库使用 `tg_id` 主键约束，同一用户只能成功领取一次。
-
-### Q4: 群里发送 `/start` 为什么没发奖？
-本项目按要求主要支持私聊发奖。群内会提示：`请私聊机器人领取奖品。`
-
-### Q5: 如何查看领取记录？
-
+## 9. 如何查看 SQLite 领取记录
 ```bash
 sqlite3 data/claims.db
 SELECT * FROM claims;
 ```
 
+## 10. 如何备份数据库
+```bash
+cp data/claims.db data/claims.db.bak
+```
+
+## 11. 常见问题
+- 启动报 `Missing BOT_TOKEN`：检查 `.env` 或环境变量。
+- 重复领取：系统会返回已领取提示，属正常行为。
+
+## 12. 测试命令
+```bash
+python -m compileall app
+python -m pytest -q
+```
+
+## 安全提醒
+- 不要提交 `.env`
+- 不要提交 `config.json`
+- 不要提交真实奖品兑换码
+- `BOT_TOKEN` 仅通过环境变量或 `.env` 提供

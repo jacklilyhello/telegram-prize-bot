@@ -5,7 +5,12 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:
+    def load_dotenv() -> bool:
+        return False
+
 
 
 @dataclass(frozen=True)
@@ -28,16 +33,17 @@ def load_app_config() -> AppConfig:
 
     bot_token = os.getenv("BOT_TOKEN", "").strip()
     if not bot_token:
-        raise ValueError("Missing BOT_TOKEN in .env")
+        raise ValueError("Missing BOT_TOKEN in environment or .env")
 
     config_path = Path(os.getenv("CONFIG_PATH", "config.json")).expanduser()
     database_path = Path(os.getenv("DATABASE_PATH", "data/claims.db")).expanduser()
 
-    return AppConfig(
-        bot_token=bot_token,
-        config_path=config_path,
-        database_path=database_path,
-    )
+    return AppConfig(bot_token=bot_token, config_path=config_path, database_path=database_path)
+
+
+def load_settings() -> AppConfig:
+    """Backward-compatible alias used by startup checks."""
+    return load_app_config()
 
 
 def load_prize_config(config_path: Path) -> PrizeConfig:
@@ -49,12 +55,12 @@ def load_prize_config(config_path: Path) -> PrizeConfig:
     except json.JSONDecodeError as exc:
         raise ValueError(f"Invalid JSON in {config_path}: {exc}") from exc
 
-    required_fields = [
+    required_fields = (
         "not_winner_message",
         "already_claimed_message",
         "winner_message_template",
         "winners",
-    ]
+    )
     for field in required_fields:
         if field not in raw:
             raise ValueError(f"Missing required config field: {field}")
@@ -79,7 +85,7 @@ def load_prize_config(config_path: Path) -> PrizeConfig:
 
         winners[tg_id] = v
 
-    for field in ["not_winner_message", "already_claimed_message"]:
+    for field in ("not_winner_message", "already_claimed_message"):
         if not isinstance(raw[field], str) or not raw[field].strip():
             raise ValueError(f"{field} must be a non-empty string")
 

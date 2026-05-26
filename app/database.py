@@ -23,6 +23,9 @@ class ClaimsRepository:
             )
             conn.commit()
 
+    def init_db(self) -> None:
+        self.init()
+
     def has_claimed(self, tg_id: int) -> bool:
         with sqlite3.connect(self.db_path) as conn:
             row = conn.execute("SELECT 1 FROM claims WHERE tg_id = ?", (tg_id,)).fetchone()
@@ -42,3 +45,6 @@ class ClaimsRepository:
             except sqlite3.IntegrityError:
                 conn.rollback()
                 return False
+
+
+ClaimsDatabase = ClaimsRepository
